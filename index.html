@@ -83,6 +83,7 @@ function hdr(){var e=$('cl');if(e)e.textContent=cloud=='bulut'?'☁ Bulutta kay�
 function n(v,d){return Number(v).toLocaleString('tr-TR',{maximumFractionDigits:d||0,minimumFractionDigits:d||0})}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function today(){return new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10)}
+function validDate(s){if(typeof s!=='string'||!/^\\d{4}-\\d{2}-\\d{2}$/.test(s))return false;var d=new Date(s+'T00:00:00');return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===s}
 function fd(s){var p=String(s).split('-');return p.length==3?p[2]+'.'+p[1]+'.'+p[0]:s}
 function $(id){return document.getElementById(id)}
 function val(id){return $(id).value}
@@ -130,7 +131,7 @@ function vOzet(){
  +'<h2>Aylık harcama</h2><div class="card">'+monthly()+'</div>'
  +'<h2>Hatırlatmalar</h2>'
  +(due.length?due.map(function(x){return '<div class="card row"><span><b>'+esc(x.it.n)+'</b><br><span class="mute t-'+x.s.c+'">'+x.s.t+'</span></span><span class="dot '+x.s.c+'"></span></div>'}).join(''):'<div class="card mute">Yaklaşan bakım yok. Bakım sekmesinde her kalemin son yapıldığı tarihi ve km’yi girin.</div>')}
-function setOdo(){var v=parseFloat(val('okm'));if(v>0){S.odo=v;save();render()}}
+function setOdo(){var v=Number(val('okm'));if(!Number.isFinite(v)||v<=0){alert('Kilometreyi sıfırdan büyük girin.');return}if(v<odo()){alert('Güncel kilometre mevcut kayıtlardan düşük olamaz.');return}S.odo=v;save();render()}
 function stations(){var s={};S.fills.forEach(function(f){if(f.station&&f.station.trim())s[f.station.trim()]=1});return Object.keys(s)}
 function vYakit(){
  var c=calc();
@@ -216,7 +217,20 @@ function vKayit(){
 function addExp(){var t=Number(val('et')),d=val('ed');if(!(Number.isFinite(t)&&t>0)){$('eerr').textContent='Sıfırdan büyük geçerli bir tutar girin.';return}if(!d||!/^\d{4}-\d{2}-\d{2}$/.test(d)){$('eerr').textContent='Geçerli bir tarih seçin.';return}S.svc.push({id:Date.now(),name:val('ec'),date:d,km:null,cost:t,note:val('en').trim(),source:'expense'});save();render()}
 function delSvc(id){S.svc=S.svc.filter(function(f){return f.id!=id});save();render()}
 function expo(){var t=JSON.stringify(S,null,2);$('bk').value=t;var blob=new Blob([t],{type:'application/json;charset=utf-8'});var url=URL.createObjectURL(blob);var a=document.createElement('a');var stamp=new Date().toISOString().slice(0,10);a.href=url;a.download='fiesta-defteri-yedek-'+stamp+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url)},1000);$('berr').textContent='JSON yedeği indirilmeye başlandı. İndirme klasörünü kontrol edin.'}
-function impo(){try{var o=JSON.parse(val('bk'));if(!o||typeof o!=='object'||Array.isArray(o)||!Array.isArray(o.fills)||!Array.isArray(o.svc)||!Array.isArray(o.items))throw new Error('shape');if(!o.fills.every(function(f){return f&&typeof f==='object'&&Number.isFinite(Number(f.km))&&Number(f.km)>0&&Number.isFinite(Number(f.l))&&Number(f.l)>0&&Number.isFinite(Number(f.tl))&&Number(f.tl)>0&&typeof f.date==='string'}))throw new Error('fills');if(!o.svc.every(function(r){return r&&typeof r==='object'&&typeof r.name==='string'&&typeof r.date==='string'&&Number.isFinite(Number(r.cost||0))&&Number(r.cost||0)>=0}))throw new Error('svc');if(!o.items.every(function(it){return it&&typeof it==='object'&&it.id!=null&&typeof it.n==='string'}))throw new Error('items');if(!confirm('Yedek yüklendiğinde mevcut bu cihazdaki verilerin üzerine yazılır. Önce mevcut verilerin yedeğini aldıysan devam et. Yedeği yükleyelim mi?'))return;S=o;norm();save();render()}catch(e){$('berr').textContent='Yedek geçersiz veya eksik. Mevcut veriler korunmuştur.'}}
+function impo(){
+ try{
+  var o=JSON.parse(val('bk'));
+  if(!o||typeof o!=='object'||Array.isArray(o)||!Array.isArray(o.fills)||!Array.isArray(o.svc)||!Array.isArray(o.items))throw new Error('shape');
+  if(o.fills.length>5000||o.svc.length>5000||o.items.length>500)throw new Error('limit');
+  if(!o.fills.every(function(f){return f&&typeof f==='object'&&Number.isSafeInteger(Number(f.id))&&Number(f.id)>0&&Number.isFinite(Number(f.km))&&Number(f.km)>0&&Number(f.km)<=10000000&&Number.isFinite(Number(f.l))&&Number(f.l)>0&&Number(f.l)<=100&&Number.isFinite(Number(f.tl))&&Number(f.tl)>0&&Number(f.tl)<=100000&&validDate(f.date)&&typeof f.full==='boolean'&&['sehir','yol','karisik'].indexOf(f.drive)>=0&&[0,1,2].indexOf(Number(f.ac))>=0&&Number.isFinite(Number(f.hard))&&Number(f.hard)>=0&&Number(f.hard)<=100&&(f.station==null||typeof f.station==='string'&&f.station.length<=200)}))throw new Error('fills');
+  if(!o.svc.every(function(r){return r&&typeof r==='object'&&Number.isSafeInteger(Number(r.id))&&Number(r.id)>0&&typeof r.name==='string'&&r.name.length<=200&&validDate(r.date)&&(r.km==null||Number.isFinite(Number(r.km))&&Number(r.km)>=0&&Number(r.km)<=10000000)&&Number.isFinite(Number(r.cost||0))&&Number(r.cost||0)>=0&&Number(r.cost||0)<=100000000&&(r.note==null||typeof r.note==='string'&&r.note.length<=500)}))throw new Error('svc');
+  var seen={};
+  if(!o.items.every(function(it){if(!it||typeof it!=='object'||typeof it.id!=='string'&&typeof it.id!=='number'||!/^[a-zA-Z0-9_-]{1,40}$/.test(String(it.id))||typeof it.n!=='string'||!it.n.trim()||it.n.length>120||!Number.isFinite(Number(it.km))||Number(it.km)<0||Number(it.km)>10000000||!Number.isFinite(Number(it.ay))||Number(it.ay)<0||Number(it.ay)>1200)return false;var key=String(it.id);if(seen[key])return false;seen[key]=true;if(it.last!=null&&(!it.last||typeof it.last!=='object'||!validDate(it.last.date)||(it.last.km!=null&&(!Number.isFinite(Number(it.last.km))||Number(it.last.km)<0||Number(it.last.km)>10000000))))return false;return true}))throw new Error('items');
+  if(o.odo!=null&&(!Number.isFinite(Number(o.odo))||Number(o.odo)<0||Number(o.odo)>10000000))throw new Error('odo');
+  if(!confirm('Yedek yüklendiğinde mevcut bu cihazdaki verilerin üzerine yazılır. Önce mevcut verilerin yedeğini aldıysan devam et. Yedeği yükleyelim mi?'))return;
+  S=o;norm();save();render();$('berr').textContent='Yedek başarıyla yüklendi.';
+ }catch(e){$('berr').textContent='Yedek geçersiz veya eksik. Mevcut veriler korunmuştur.'}
+}
 render();initCloud();
 </script>
 </body>
